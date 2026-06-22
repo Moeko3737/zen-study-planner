@@ -309,7 +309,26 @@
             order: 3;
             cursor: default;
         }
-        .course-badge { order: 4; }
+        .course-badge { order: 4; align-items: center; }
+        .course-badge .course-complete {
+            width: 20px;
+            height: 20px;
+            margin: 0;
+            flex: 0 0 20px;
+            cursor: pointer;
+            accent-color: #6c757d;
+        }
+        .course-badge .course-label { flex: 1 1 auto; }
+        .course-badge.completed {
+            background: #e4e7eb !important;
+            border-color: #aeb6bf !important;
+            color: #626b75 !important;
+            opacity: 0.88;
+        }
+        .course-badge.completed .course-label {
+            text-decoration: line-through;
+            text-decoration-thickness: 2px;
+        }
 
         .modal {
             display: none;
@@ -521,6 +540,7 @@
             ・スマートフォンでは、科目や予定を選択してから、配置したい日付をタップします。<br>
             ・カレンダーの日付をタップすると、個別の予定やメモを入力できます。<br>
             ・配置した科目は、日付順に①〜⑮の番号が自動で付きます。<br>
+            ・学習が終わった科目は、左側のチェックを入れるとグレー表示になります。<br>
             ・入力したデータはブラウザ内に保存されます。<br>
             ・機種変更や別端末への移行時は、バックアップ機能をご利用ください。
         </div>
@@ -663,9 +683,9 @@
 </section>
 
 <script>
-    const APP_VERSION = "1.0";
+    const APP_VERSION = "1.1";
     const LAST_UPDATED = "2026年6月22日";
-    const DATA_VERSION = 2;
+    const DATA_VERSION = 3;
 
     const STORAGE_KEY = "zenPlannerPublicV1";
     const INIT_KEY = "zenPlannerPublicV1_init";
@@ -768,6 +788,25 @@
         return isPlainObject(value) ? value : {};
     }
 
+    function sanitizeCourses(value) {
+        if (!isPlainObject(value)) return {};
+        const result = {};
+        Object.entries(value).forEach(([id, item]) => {
+            if (!isPlainObject(item)) return;
+            const name = typeof item.name === "string" ? item.name.trim() : "";
+            const date = normalizeDateKey(item.date);
+            if (!name || !date) return;
+            result[id] = {
+                ...item,
+                name,
+                date,
+                num: typeof item.num === "string" ? item.num : "",
+                completed: item.completed === true
+            };
+        });
+        return result;
+    }
+
     function sanitizeDeadlines(value) {
         if (!Array.isArray(value)) return createInitialDeadlines();
         const result = [];
@@ -792,7 +831,7 @@
 
         return {
             dataVersion: DATA_VERSION,
-            courses: sanitizeRecord(raw.courses),
+            courses: sanitizeCourses(raw.courses),
             stickies: sanitizeRecord(raw.stickies),
             memos: sanitizeRecord(raw.memos),
             settings: {
@@ -1044,12 +1083,33 @@
                 .filter(([, info]) => info && info.date === date)
                 .forEach(([id, info]) => {
                     const style = getCourseStyle(info.name);
-                    const badge = createBadge(`${info.name}${info.num || ""}`, "course-badge", () => removeCourse(id));
+                    const courseText = `${info.name}${info.num || ""}`;
+                    const badge = createBadge(courseText, "course-badge", () => removeCourse(id));
+                    const label = badge.querySelector("span");
+                    if (label) label.classList.add("course-label");
+
+                    const checkbox = document.createElement("input");
+                    checkbox.type = "checkbox";
+                    checkbox.className = "course-complete";
+                    checkbox.checked = info.completed === true;
+                    checkbox.draggable = false;
+                    checkbox.title = checkbox.checked ? "完了済み。チェックを外すと未完了に戻ります" : "学習が終わったらチェック";
+                    checkbox.setAttribute("aria-label", `${courseText}を${checkbox.checked ? "未完了に戻す" : "完了にする"}`);
+                    checkbox.addEventListener("pointerdown", event => event.stopPropagation());
+                    checkbox.addEventListener("click", event => event.stopPropagation());
+                    checkbox.addEventListener("change", () => toggleCourseCompleted(id, checkbox.checked));
+                    badge.insertBefore(checkbox, badge.firstChild);
+
+                    badge.classList.toggle("completed", checkbox.checked);
                     badge.style.background = style.bg;
                     badge.style.color = style.text;
                     badge.style.borderColor = style.border;
                     badge.draggable = true;
                     badge.addEventListener("dragstart", event => {
+                        if (event.target === checkbox) {
+                            event.preventDefault();
+                            return;
+                        }
                         event.dataTransfer.setData("type", "move-course");
                         event.dataTransfer.setData("id", id);
                     });
@@ -1165,9 +1225,16 @@
             return false;
         }
         const id = makeId("course");
-        planData.courses[id] = { name, date, num: "" };
+        planData.courses[id] = { name, date, num: "", completed: false };
         reorder(name);
         return true;
+    }
+
+    function toggleCourseCompleted(id, completed) {
+        const course = planData.courses[id];
+        if (!course) return;
+        course.completed = completed === true;
+        savePlan();
     }
 
     function removeCourse(id) {
