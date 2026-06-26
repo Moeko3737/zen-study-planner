@@ -309,6 +309,17 @@
             order: 3;
             cursor: default;
         }
+        .day.exam-period-day {
+            box-shadow: inset 0 4px 0 #7c3aed;
+            background-image: linear-gradient(rgba(124, 58, 237, 0.035), rgba(124, 58, 237, 0.035));
+        }
+        .exam-period-badge {
+            background: #f3edff;
+            border: 1px solid #a78bfa;
+            color: #5b21b6;
+            order: 0;
+            cursor: default;
+        }
         .course-badge { order: 4; align-items: center; }
         .course-badge .course-complete {
             width: 20px;
@@ -371,7 +382,7 @@
         .setting-help { font-size: 0.8rem; color: var(--muted); margin: 5px 0 12px; }
         .storage-info { background: #eef7ff; border-color: #b8daf7; color: #245476; }
         .input-row { display: flex; gap: 6px; margin-bottom: 8px; }
-        .input-row input, .deadline-form input, .deadline-row input, textarea {
+        .input-row input, .deadline-form input, .deadline-row input, .exam-period-form input, .exam-period-row input, textarea {
             width: 100%;
             padding: 10px;
             border: 1px solid #cbd2d9;
@@ -412,6 +423,23 @@
             border: 1px solid #e1e5ea;
             border-radius: 7px;
             background: white;
+            align-items: center;
+        }
+        .exam-period-form {
+            display: grid;
+            grid-template-columns: 140px 140px minmax(0, 1fr) auto;
+            gap: 7px;
+            align-items: center;
+        }
+        .exam-period-list { display: grid; gap: 8px; margin-top: 13px; }
+        .exam-period-row {
+            display: grid;
+            grid-template-columns: 132px 132px minmax(0, 1fr) auto auto;
+            gap: 6px;
+            padding: 9px;
+            border: 1px solid #ddd4f5;
+            border-radius: 7px;
+            background: #fdfbff;
             align-items: center;
         }
         .btn-small {
@@ -502,8 +530,8 @@
             .day, .blank-day { min-height: 154px; }
             .modal { width: calc(100vw - 24px); padding: 18px; max-height: 90vh; }
             .modal input, .modal textarea, .modal button { font-size: 16px; }
-            .deadline-form, .deadline-row { grid-template-columns: 1fr; }
-            .deadline-row .btn-small { width: 100%; }
+            .deadline-form, .deadline-row, .exam-period-form, .exam-period-row { grid-template-columns: 1fr; }
+            .deadline-row .btn-small, .exam-period-row .btn-small { width: 100%; }
             .backup-area, .btn-group { flex-direction: column; }
             .notice, .guide-msg { font-size: 0.83rem; }
         }
@@ -541,6 +569,7 @@
             ・カレンダーの日付をタップすると、個別の予定やメモを入力できます。<br>
             ・配置した科目は、日付順に①〜⑮の番号が自動で付きます。<br>
             ・学習が終わった科目は、左側のチェックを入れるとグレー表示になります。<br>
+            ・設定画面から試験期間を登録すると、該当日が紫色で表示されます。<br>
             ・入力したデータはブラウザ内に保存されます。<br>
             ・機種変更や別端末への移行時は、バックアップ機能をご利用ください。
         </div>
@@ -660,6 +689,18 @@
     </div>
 
     <div class="setting-block">
+        <span class="block-label">📝 試験期間の管理</span>
+        <p class="setting-help">2026年度の単位認定試験・追試験を初期登録しています。必要に応じて編集・削除できます。期間中の日付は紫色で表示され、既存の予定や履修データには影響しません。</p>
+        <div class="exam-period-form">
+            <input id="new-exam-start" type="date" aria-label="試験期間の開始日">
+            <input id="new-exam-end" type="date" aria-label="試験期間の終了日">
+            <input id="new-exam-text" type="text" maxlength="100" placeholder="例：2Q 単位認定試験期間" aria-label="試験期間名">
+            <button class="btn-small save" type="button" onclick="addExamPeriod()">期間を追加</button>
+        </div>
+        <div id="exam-period-list" class="exam-period-list"></div>
+    </div>
+
+    <div class="setting-block">
         <span class="block-label">💾 バックアップと復元</span>
         <p class="backup-note">機種変更や別端末への移行には、バックアップ保存と復元をご利用ください。</p>
         <div class="backup-area">
@@ -672,7 +713,7 @@
 
     <div class="setting-block danger-zone">
         <span class="block-label">🗑️ データの初期化</span>
-        <p class="setting-help">このアプリで保存した科目、予定、メモ、締切、設定をすべて削除します。</p>
+        <p class="setting-help">このアプリで保存した科目、予定、メモ、締切、試験期間、設定をすべて削除します。</p>
         <button class="btn-reset" type="button" onclick="resetAllData()">すべてのデータを削除して初期状態に戻す</button>
     </div>
 
@@ -683,9 +724,9 @@
 </section>
 
 <script>
-    const APP_VERSION = "1.1";
-    const LAST_UPDATED = "2026年6月22日";
-    const DATA_VERSION = 3;
+    const APP_VERSION = "1.3";
+    const LAST_UPDATED = "2026年6月26日";
+    const DATA_VERSION = 5;
 
     const STORAGE_KEY = "zenPlannerPublicV1";
     const INIT_KEY = "zenPlannerPublicV1_init";
@@ -726,6 +767,17 @@
         ["2027-2-14", "秋学期ライブ映像確認レポート締め切り"]
     ];
 
+    const initialExamPeriods = [
+        ["2026-6-9", "2026-6-15", "1Q単位認定試験"],
+        ["2026-6-19", "2026-6-20", "1Q単位認定試験追試験"],
+        ["2026-8-25", "2026-8-31", "2Q単位認定試験"],
+        ["2026-9-4", "2026-9-5", "2Q単位認定試験追試験"],
+        ["2026-12-1", "2026-12-7", "3Q単位認定試験"],
+        ["2026-12-11", "2026-12-12", "3Q単位認定試験追試験"],
+        ["2027-2-16", "2027-2-22", "4Q単位認定試験"],
+        ["2027-2-26", "2027-2-27", "4Q単位認定試験追試験"]
+    ];
+
     const holidays = {
         "2026-4-29":"昭和の日", "2026-5-3":"憲法記念日", "2026-5-4":"みどりの日", "2026-5-5":"こどもの日", "2026-5-6":"振替休日",
         "2026-7-20":"海の日", "2026-8-11":"山の日", "2026-9-21":"敬老の日", "2026-9-22":"国民の休日", "2026-9-23":"秋分の日",
@@ -744,6 +796,26 @@
         return initialDeadlines.map(([date, text], index) => ({ id: `initial-${index + 1}`, date, text }));
     }
 
+    function createInitialExamPeriods() {
+        return initialExamPeriods.map(([startDate, endDate, text], index) => ({
+            id: `initial-exam-${index + 1}`,
+            startDate,
+            endDate,
+            text
+        }));
+    }
+
+    function mergeInitialExamPeriods(existingPeriods) {
+        const merged = [...existingPeriods];
+        createInitialExamPeriods().forEach(initialPeriod => {
+            const alreadyExists = merged.some(period =>
+                period.startDate === initialPeriod.startDate && period.endDate === initialPeriod.endDate
+            );
+            if (!alreadyExists) merged.push(initialPeriod);
+        });
+        return merged;
+    }
+
     function createDefaultData() {
         return {
             dataVersion: DATA_VERSION,
@@ -752,6 +824,7 @@
             memos: {},
             settings: { onDemand: [], live: [], stickies: [] },
             deadlines: createInitialDeadlines(),
+            examPeriods: createInitialExamPeriods(),
             lastView: { year: 2026, month: 5 }
         };
     }
@@ -820,14 +893,38 @@
         return result;
     }
 
+    function sanitizeExamPeriods(value) {
+        if (!Array.isArray(value)) return [];
+        const result = [];
+        value.forEach((item, index) => {
+            if (!isPlainObject(item)) return;
+            const startDate = normalizeDateKey(item.startDate);
+            const endDate = normalizeDateKey(item.endDate);
+            const text = typeof item.text === "string" ? item.text.trim().slice(0, 100) : "";
+            if (!startDate || !endDate || !text || dateKeyNumber(startDate) > dateKeyNumber(endDate)) return;
+            result.push({
+                id: typeof item.id === "string" && item.id ? item.id : `imported-${index}-${makeId("exam")}`,
+                startDate,
+                endDate,
+                text
+            });
+        });
+        return result;
+    }
+
     function sanitizePlanData(raw) {
         const defaults = createDefaultData();
         if (!isPlainObject(raw)) return defaults;
 
         const settings = isPlainObject(raw.settings) ? raw.settings : {};
         const lastView = isPlainObject(raw.lastView) ? raw.lastView : {};
+        const sourceDataVersion = Number.isInteger(raw.dataVersion) ? raw.dataVersion : 0;
         const safeYear = Number.isInteger(lastView.year) ? lastView.year : defaults.lastView.year;
         const safeMonth = Number.isInteger(lastView.month) && lastView.month >= 0 && lastView.month <= 11 ? lastView.month : defaults.lastView.month;
+        const sanitizedExamPeriods = sanitizeExamPeriods(raw.examPeriods);
+        const examPeriods = sourceDataVersion < DATA_VERSION
+            ? mergeInitialExamPeriods(sanitizedExamPeriods)
+            : sanitizedExamPeriods;
 
         return {
             dataVersion: DATA_VERSION,
@@ -840,6 +937,7 @@
                 stickies: sanitizeStringArray(settings.stickies)
             },
             deadlines: Array.isArray(raw.deadlines) ? sanitizeDeadlines(raw.deadlines) : createInitialDeadlines(),
+            examPeriods,
             lastView: { year: safeYear, month: safeMonth }
         };
     }
@@ -880,6 +978,7 @@
     function init() {
         document.getElementById("footer-version").textContent = APP_VERSION;
         document.getElementById("footer-updated").textContent = LAST_UPDATED;
+        savePlan(false);
         renderPalette();
         renderCalendar();
 
@@ -1043,6 +1142,17 @@
             }
             dayDiv.appendChild(dayNumber);
 
+            const examPeriodsForDate = planData.examPeriods.filter(period => isDateWithinPeriod(date, period.startDate, period.endDate));
+            if (examPeriodsForDate.length) dayDiv.classList.add("exam-period-day");
+            examPeriodsForDate.forEach(period => {
+                const badge = document.createElement("div");
+                badge.className = "item-badge exam-period-badge";
+                badge.textContent = `📝 ${period.text}`;
+                badge.title = `${dateKeyToInput(period.startDate)}〜${dateKeyToInput(period.endDate)}`;
+                badge.addEventListener("click", event => event.stopPropagation());
+                dayDiv.appendChild(badge);
+            });
+
             (Array.isArray(planData.stickies[date]) ? planData.stickies[date] : []).forEach((text, index) => {
                 const badge = createBadge(String(text), "sticky-badge", () => {
                     planData.stickies[date].splice(index, 1);
@@ -1204,6 +1314,16 @@
         return normalized ? normalized.split("-").map(Number) : [9999, 12, 31];
     }
 
+    function dateKeyNumber(value) {
+        const [year, month, day] = parseDateKey(value);
+        return year * 10000 + month * 100 + day;
+    }
+
+    function isDateWithinPeriod(date, startDate, endDate) {
+        const target = dateKeyNumber(date);
+        return target >= dateKeyNumber(startDate) && target <= dateKeyNumber(endDate);
+    }
+
     function reorder(name) {
         const items = Object.entries(planData.courses)
             .filter(([, value]) => value && value.name === name)
@@ -1282,6 +1402,7 @@
         document.getElementById("settings-title").textContent = isInitial ? "アプリの初期設定" : "設定・バックアップ";
         document.getElementById("backup-status").textContent = "";
         renderDeadlineList();
+        renderExamPeriodList();
         openModal("settings-modal");
     }
 
@@ -1431,6 +1552,111 @@
         renderCalendar();
     }
 
+    function renderExamPeriodList() {
+        const list = document.getElementById("exam-period-list");
+        list.innerHTML = "";
+        const sorted = [...planData.examPeriods].sort((a, b) => {
+            return dateKeyNumber(a.startDate) - dateKeyNumber(b.startDate)
+                || dateKeyNumber(a.endDate) - dateKeyNumber(b.endDate)
+                || a.text.localeCompare(b.text, "ja");
+        });
+
+        if (!sorted.length) {
+            const empty = document.createElement("p");
+            empty.className = "setting-help";
+            empty.textContent = "登録されている試験期間はありません。";
+            list.appendChild(empty);
+            return;
+        }
+
+        sorted.forEach(item => {
+            const row = document.createElement("div");
+            row.className = "exam-period-row";
+            row.dataset.id = item.id;
+
+            const startInput = document.createElement("input");
+            startInput.type = "date";
+            startInput.value = dateKeyToInput(item.startDate);
+            startInput.setAttribute("aria-label", `${item.text}の開始日`);
+
+            const endInput = document.createElement("input");
+            endInput.type = "date";
+            endInput.value = dateKeyToInput(item.endDate);
+            endInput.setAttribute("aria-label", `${item.text}の終了日`);
+
+            const textInput = document.createElement("input");
+            textInput.type = "text";
+            textInput.maxLength = 100;
+            textInput.value = item.text;
+            textInput.setAttribute("aria-label", "試験期間名");
+
+            const saveButton = document.createElement("button");
+            saveButton.type = "button";
+            saveButton.className = "btn-small save";
+            saveButton.textContent = "更新";
+            saveButton.addEventListener("click", () => updateExamPeriod(item.id, startInput.value, endInput.value, textInput.value));
+
+            const deleteButton = document.createElement("button");
+            deleteButton.type = "button";
+            deleteButton.className = "btn-small delete";
+            deleteButton.textContent = "削除";
+            deleteButton.addEventListener("click", () => deleteExamPeriod(item.id));
+
+            row.append(startInput, endInput, textInput, saveButton, deleteButton);
+            list.appendChild(row);
+        });
+    }
+
+    function validateExamPeriod(startValue, endValue, textValue) {
+        const startDate = normalizeDateKey(startValue);
+        const endDate = normalizeDateKey(endValue);
+        const text = textValue.trim();
+        if (!startDate || !endDate || !text) {
+            alert("開始日、終了日、試験期間名を入力してください。");
+            return null;
+        }
+        if (dateKeyNumber(startDate) > dateKeyNumber(endDate)) {
+            alert("終了日は開始日以降の日付にしてください。");
+            return null;
+        }
+        return { startDate, endDate, text: text.slice(0, 100) };
+    }
+
+    function addExamPeriod() {
+        const startInput = document.getElementById("new-exam-start");
+        const endInput = document.getElementById("new-exam-end");
+        const textInput = document.getElementById("new-exam-text");
+        const values = validateExamPeriod(startInput.value, endInput.value, textInput.value);
+        if (!values) return;
+        planData.examPeriods.push({ id: makeId("exam"), ...values });
+        startInput.value = "";
+        endInput.value = "";
+        textInput.value = "";
+        savePlan(false);
+        renderExamPeriodList();
+        renderCalendar();
+    }
+
+    function updateExamPeriod(id, startValue, endValue, textValue) {
+        const item = planData.examPeriods.find(period => period.id === id);
+        const values = validateExamPeriod(startValue, endValue, textValue);
+        if (!item || !values) return;
+        Object.assign(item, values);
+        savePlan(false);
+        renderExamPeriodList();
+        renderCalendar();
+    }
+
+    function deleteExamPeriod(id) {
+        const item = planData.examPeriods.find(period => period.id === id);
+        if (!item) return;
+        if (!confirm(`「${item.text}」を削除しますか？`)) return;
+        planData.examPeriods = planData.examPeriods.filter(period => period.id !== id);
+        savePlan(false);
+        renderExamPeriodList();
+        renderCalendar();
+    }
+
     function changeMonth(offset) {
         currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + offset, 1);
         planData.lastView = { year: currentDate.getFullYear(), month: currentDate.getMonth() };
@@ -1504,6 +1730,7 @@
                 localStorage.setItem(LEGACY_INIT_KEY, "true");
                 savePlan();
                 renderDeadlineList();
+                renderExamPeriodList();
                 document.getElementById("backup-status").textContent = "バックアップデータを復元しました。";
                 alert("バックアップデータを復元しました。");
             } catch (error) {
